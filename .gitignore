@@ -1,0 +1,12 @@
+herenode_modules/
+npm-debug.log
+yarn-error.log
+.expo/
+.expo-shared/
+dist/
+.env
+.DS_Store
+Thumbs.db
+.cache/
+build/
+*.apk
