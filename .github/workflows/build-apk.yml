@@ -30,6 +30,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android Licenses
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
       - name: Install Expo CLI
         run: npm install -g expo-cli eas-cli
 
