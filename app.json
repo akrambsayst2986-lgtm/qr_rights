@@ -1,0 +1,30 @@
+here{
+  "expo": {
+    "name": "QR Rights",
+    "slug": "qr-rights",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.qrrights.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#667eea"
+      },
+      "package": "com.qrrights.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
