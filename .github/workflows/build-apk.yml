@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK (Final Fix)
 
 on:
   workflow_dispatch:
@@ -10,45 +10,52 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      # 1. جلب الكود
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 2. تثبيت Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Setup Java
+      # 3. تثبيت Java (مطلوب للأندرويد)
+      - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
           java-version: '17'
+          distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # 4. تثبيت المكتبات
+      - name: Install Dependencies
+        run: npm install
 
-      - name: Accept Android Licenses
-        run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-
+      # 5. تثبيت Expo CLI
       - name: Install Expo CLI
-        run: npm install -g expo-cli eas-cli
+        run: npm install -g expo-cli
 
+      # 6. تجهيز مشروع الأندرويد (Prebuild)
       - name: Prebuild Android
         run: npx expo prebuild --platform android --clean
 
+      # 7. قبول تراخيص أندرويد تلقائياً (الحل السحري)
+      - name: Accept Android Licenses
+        run: |
+          mkdir -p $ANDROID_HOME/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+
+      # 8. بناء التطبيق (APK)
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease
 
+      # 9. رفع التطبيق
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: qr-rights-apk
+          name: qr-rights-app
           path: android/app/build/outputs/apk/release/*.apk
-          retention-days: 30
