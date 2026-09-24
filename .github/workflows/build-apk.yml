@@ -19,18 +19,19 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: npm install  # ✅ تغيّر من npm ci إلى npm install
+        run: npm install
 
       - name: Setup EAS CLI
         run: npm install -g eas-cli
 
       - name: Build with EAS
         run: |
-          eas build --platform android --non-interactive --wait --auto-submit false
+          eas build --platform android --non-interactive --wait --no-auto-submit
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-apk
