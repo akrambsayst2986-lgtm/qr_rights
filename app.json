@@ -4,19 +4,13 @@
     "slug": "qr-rights",
     "version": "2.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTabletMode": true,
-      "bundleIdentifier": "com.qrrights.app",
-      "infoPlist": {
-        "NSCameraUsageDescription": "نحتاج الوصول للكاميرا لمسح QR Code",
-        "NSPhotoLibraryUsageDescription": "نحتاج الوصول للصور لقراءة QR Code"
-      }
+      "bundleIdentifier": "com.qrrights.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,20 +24,18 @@
         "WRITE_EXTERNAL_STORAGE"
       ]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    "web": {},
     "plugins": [
       [
         "expo-camera",
         {
-          "cameraPermission": "نحتاج الوصول للكاميرا"
+          "cameraPermission": "نحتاج الوصول للكاميرا لمسح QR Code"
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "نحتاج الوصول للصور"
+          "photosPermission": "نحتاج الوصول للصور لقراءة QR Code"
         }
       ]
     ]
