@@ -5,10 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "platforms": ["ios", "android", "web"],
+    "sdkVersion": "49.0.0",
     "android": {
       "package": "com.qrrights.app",
-      "compileSdkVersion": 34,
-      "targetSdkVersion": 34,
+      "versionCode": 1,
+      "compileSdkVersion": 33,
+      "targetSdkVersion": 33,
+      "minSdkVersion": 21,
       "adaptiveIcon": {
         "backgroundColor": "#667eea"
       }
