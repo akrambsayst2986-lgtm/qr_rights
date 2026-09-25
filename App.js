@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,23 +9,28 @@ import {
   Alert,
   Platform,
   Linking,
+  PanResponder,
+  Animated,
+  Image,
 } from 'react-native';
+import QRCode from 'qrcode.react';
 
+// FIXED: صيغ صحيحة للروابط
 const SOCIAL_PATTERNS = {
-  facebook: /^(https?:\/\/)?(www\.)?facebook\.com\/[\w\-\.]+\/?$/i,
-  instagram: /^(https?:\/\/)?(www\.)?instagram\.com\/[\w\.]+\/?$/i,
-  twitter: /^(https?:\/\/)?(www\.)?twitter\.com\/[\w]+\/?$/i,
-  tiktok: /^(https?:\/\/)?(www\.)?tiktok\.com\/@[\w\.]+\/?$/i,
-  youtube: /^(https?:\/\/)?(www\.|m\.)?youtube\.com\/(user|channel|c)\/[\w\-]+\/?$/i,
-  reddit: /^(https?:\/\/)?(www\.)?reddit\.com\/(u|user)\/[\w\-]+\/?$/i,
-  discord: /^(https?:\/\/)?(www\.)?discord\.gg\/[\w]+\/?$/i,
+  facebook: /^(https?:\/\/)?(www\.)?facebook\.com\/[\w\-\.]+\/?(\?.*)?$/i,
+  instagram: /^(https?:\/\/)?(www\.)?instagram\.com\/[\w\.]+\/?(\?.*)?$/i,
+  twitter: /^(https?:\/\/)?(www\.)?twitter\.com\/[\w]+\/?(\?.*)?$/i,
+  tiktok: /^(https?:\/\/)?(www\.)?tiktok\.com\/@[\w\.]+\/?(\?.*)?$/i,
+  youtube: /^(https?:\/\/)?(www\.|m\.)?youtube\.com\/(user|channel|c)\/[\w\-]+\/?(\?.*)?$/i,
+  reddit: /^(https?:\/\/)?(www\.)?reddit\.com\/(u|user)\/[\w\-]+\/?(\?.*)?$/i,
+  discord: /^(https?:\/\/)?(www\.)?discord\.gg\/[\w]+\/?(\?.*)?$/i,
 };
 
 const PLATFORMS = [
   { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877F2' },
   { id: 'instagram', name: 'Instagram', icon: '📷', color: '#E1306C' },
   { id: 'twitter', name: 'Twitter', icon: '🐦', color: '#1DA1F2' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵', color: '#000000' },
+  { id: 'tiktok', name: 'TikTok', icon: '🎵', color: '#FF0000' },
   { id: 'youtube', name: 'YouTube', icon: '📺', color: '#FF0000' },
   { id: 'reddit', name: 'Reddit', icon: '🔴', color: '#FF4500' },
   { id: 'discord', name: 'Discord', icon: '💬', color: '#5865F2' },
@@ -53,6 +58,26 @@ export default function App() {
 
   const [displayProfile, setDisplayProfile] = useState(null);
   const [errors, setErrors] = useState({});
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+
+  // Pan responder for swipe to close modal
+  const pan = useRef(new Animated.ValueXY()).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderRelease: (e, { dy }) => {
+        if (dy > 100) {
+          setShowAbout(false);
+        }
+        Animated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+        }).start();
+      },
+    })
+  ).current;
 
   const updateSocialAccount = (platform, index, value) => {
     setSocialAccounts(prev => ({
@@ -89,7 +114,7 @@ export default function App() {
 
     if (hasErrors) {
       setErrors(newErrors);
-      Alert.alert('تحذير', 'بعض الروابط غير صحيحة');
+      Alert.alert('تحذير', 'تحقق من الروابط المشار إليها بـ ⚠️');
       return;
     }
 
@@ -124,13 +149,29 @@ export default function App() {
     );
     setDisplayProfile(null);
     setErrors({});
+    setQrDataUrl(null);
   };
 
   return (
     <View style={styles.container}>
+      {/* DARK MODE MODAL */}
       {showAbout && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAbout(false)}
+        >
+          <Animated.View
+            style={[
+              styles.modal,
+              {
+                transform: [{ translateY: pan.y }],
+              },
+            ]}
+            {...panResponder.panHandlers}
+          >
+            <View style={styles.dragHandle} />
+            
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setShowAbout(false)}
@@ -153,7 +194,7 @@ export default function App() {
 
               <TouchableOpacity
                 style={[styles.socialButton, { backgroundColor: '#E1306C' }]}
-                onPress={() => Linking.openURL('https://www.instagram.com/z.e.r.o.12_x.43?stkn=MWEwcWprcDh0anlubQ==')}
+                onPress={() => Linking.openURL('https://www.instagram.com/z.e.r.o.12_x.43')}
               >
                 <Text style={styles.socialButtonText}>📷 Instagram</Text>
               </TouchableOpacity>
@@ -162,10 +203,11 @@ export default function App() {
                 شكراً لاستخدامك QR Rights ✨
               </Text>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </TouchableOpacity>
       )}
 
+      {/* HEADER - DARK */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.aboutButton}
@@ -178,6 +220,7 @@ export default function App() {
         <Text style={styles.headerSubtitle}>حماية حقوق المحتوى الخاص بك</Text>
       </View>
 
+      {/* TABS - DARK */}
       <View style={styles.tabs}>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'create' && styles.tabButtonActive]}
@@ -208,19 +251,19 @@ export default function App() {
                   <TextInput
                     style={styles.input}
                     placeholder="اسمك أو اسم علامتك التجارية"
+                    placeholderTextColor="#888"
                     value={creatorName}
                     onChangeText={setCreatorName}
-                    placeholderTextColor="#999"
                   />
 
                   <TextInput
                     style={[styles.input, styles.bioInput]}
                     placeholder="وصف مختصر (اختياري)"
+                    placeholderTextColor="#888"
                     value={creatorBio}
                     onChangeText={setCreatorBio}
                     multiline={true}
                     numberOfLines={3}
-                    placeholderTextColor="#999"
                   />
                 </View>
 
@@ -235,20 +278,18 @@ export default function App() {
 
                     {[0, 1, 2].map((index) => (
                       <View key={`${platform.id}-${index}`}>
-                        <View style={styles.accountInputWrapper}>
-                          <TextInput
-                            style={[
-                              styles.socialInput,
-                              errors[`${platform.id}-${index}`] && styles.inputError
-                            ]}
-                            placeholder={`الحساب ${index + 1}`}
-                            value={socialAccounts[platform.id][index]}
-                            onChangeText={(text) =>
-                              updateSocialAccount(platform.id, index, text)
-                            }
-                            placeholderTextColor="#bbb"
-                          />
-                        </View>
+                        <TextInput
+                          style={[
+                            styles.socialInput,
+                            errors[`${platform.id}-${index}`] && styles.inputError
+                          ]}
+                          placeholder={`الحساب ${index + 1}`}
+                          placeholderTextColor="#888"
+                          value={socialAccounts[platform.id][index]}
+                          onChangeText={(text) =>
+                            updateSocialAccount(platform.id, index, text)
+                          }
+                        />
                         {errors[`${platform.id}-${index}`] && (
                           <Text style={styles.errorText}>
                             ⚠️ {errors[`${platform.id}-${index}`]}
@@ -263,7 +304,7 @@ export default function App() {
                   style={styles.generateButton}
                   onPress={validateAndGenerate}
                 >
-                  <Text style={styles.generateButtonText}>🔧 إنشاء ملفي</Text>
+                  <Text style={styles.generateButtonText}>🔧 إنشاء ملفي و QR</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -274,6 +315,21 @@ export default function App() {
                     <Text style={styles.profileBio}>{displayProfile.bio}</Text>
                   )}
 
+                  {/* QR CODE SECTION */}
+                  <View style={styles.qrContainer}>
+                    <Text style={styles.qrLabel}>📱 رمز QR الخاص بك</Text>
+                    <View style={styles.qrBox}>
+                      <QRCode
+                        value={generateJSON()}
+                        size={200}
+                        color="#667eea"
+                        backgroundColor="#ffffff"
+                        quietZone={10}
+                      />
+                    </View>
+                  </View>
+
+                  {/* SOCIAL LINKS */}
                   {Object.keys(displayProfile.socials).map(platformId => {
                     const platform = PLATFORMS.find(p => p.id === platformId);
                     if (displayProfile.socials[platformId].length === 0) return null;
@@ -296,20 +352,13 @@ export default function App() {
                             }}
                           >
                             <Text style={styles.socialLinkText}>
-                              {url.substring(0, 40)}...
+                              🔗 {url.substring(0, 35)}
                             </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
                     );
                   })}
-
-                  <View style={styles.jsonBox}>
-                    <Text style={styles.jsonLabel}>📋 البيانات:</Text>
-                    <Text style={styles.jsonContent} selectable={true}>
-                      {generateJSON()}
-                    </Text>
-                  </View>
 
                   <TouchableOpacity
                     style={styles.resetButton}
@@ -324,10 +373,17 @@ export default function App() {
         ) : (
           <View style={styles.section}>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>مسح QR Code</Text>
+              <Text style={styles.cardTitle}>🔍 مسح QR Code</Text>
               <Text style={styles.cardDescription}>
-                قريباً: سيتمكن التطبيق من مسح QR Codes من الكاميرا والصور
+                اختر صورة من الهاتف تحتوي على QR Code
               </Text>
+              
+              <TouchableOpacity
+                style={styles.uploadButton}
+                onPress={() => Alert.alert('قريباً', 'سيتم إضافة خاصية قراءة الصور قريباً')}
+              >
+                <Text style={styles.uploadButtonText}>📤 اختر صورة QR</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -337,54 +393,73 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  modal: { backgroundColor: 'white', borderRadius: 20, padding: 20, width: '85%', maxWidth: 350, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 10 },
-  closeButton: { position: 'absolute', top: 15, right: 15, width: 35, height: 35, borderRadius: 50, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' },
-  closeButtonText: { fontSize: 20, color: '#666', fontWeight: 'bold' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
-  developerCard: { backgroundColor: '#f9f9f9', borderRadius: 15, padding: 20, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  
+  // MODAL - DARK
+  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'flex-end', zIndex: 1000 },
+  modal: { backgroundColor: '#16213e', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20, paddingBottom: 40, maxHeight: '80%' },
+  dragHandle: { width: 40, height: 4, backgroundColor: '#667eea', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
+  closeButton: { position: 'absolute', top: 15, right: 15, width: 35, height: 35, borderRadius: 50, backgroundColor: '#0f3460', justifyContent: 'center', alignItems: 'center' },
+  closeButtonText: { fontSize: 20, color: '#fff', fontWeight: 'bold' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 20, textAlign: 'center' },
+  developerCard: { backgroundColor: '#0f3460', borderRadius: 15, padding: 20, alignItems: 'center' },
   developerName: { fontSize: 22, fontWeight: 'bold', color: '#667eea', marginBottom: 5 },
-  developerRole: { fontSize: 14, color: '#666', marginBottom: 20, fontStyle: 'italic' },
+  developerRole: { fontSize: 14, color: '#aaa', marginBottom: 20, fontStyle: 'italic' },
   socialButton: { width: '100%', paddingVertical: 12, borderRadius: 10, marginBottom: 10, justifyContent: 'center', alignItems: 'center' },
   socialButtonText: { color: 'white', fontSize: 14, fontWeight: '600' },
-  modalDescription: { marginTop: 15, fontSize: 13, color: '#999', textAlign: 'center', fontStyle: 'italic' },
-  header: { backgroundColor: '#667eea', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20, alignItems: 'center', position: 'relative' },
-  aboutButton: { position: 'absolute', top: 10, right: 15, width: 40, height: 40, borderRadius: 50, backgroundColor: 'rgba(255, 255, 255, 0.2)', justifyContent: 'center', alignItems: 'center' },
+  modalDescription: { marginTop: 15, fontSize: 13, color: '#888', textAlign: 'center' },
+
+  // HEADER - DARK
+  header: { backgroundColor: '#0f3460', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20, alignItems: 'center', position: 'relative' },
+  aboutButton: { position: 'absolute', top: 10, right: 15, width: 40, height: 40, borderRadius: 50, backgroundColor: 'rgba(102, 126, 234, 0.2)', justifyContent: 'center', alignItems: 'center' },
   aboutButtonText: { fontSize: 20 },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', color: 'white', marginBottom: 5 },
-  headerSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.9)' },
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 15, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
-  tabButton: { flex: 1, paddingVertical: 10, paddingHorizontal: 15, marginHorizontal: 5, borderRadius: 20, backgroundColor: '#f0f0f0' },
+  headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  headerSubtitle: { fontSize: 14, color: '#aaa' },
+
+  // TABS - DARK
+  tabs: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 15, backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460' },
+  tabButton: { flex: 1, paddingVertical: 10, paddingHorizontal: 15, marginHorizontal: 5, borderRadius: 20, backgroundColor: '#0f3460' },
   tabButtonActive: { backgroundColor: '#667eea' },
-  tabButtonText: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#666' },
+  tabButtonText: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#888' },
   tabButtonTextActive: { color: 'white' },
+
+  // CONTENT - DARK
   content: { flex: 1, padding: 15 },
   section: { marginBottom: 20 },
-  card: { backgroundColor: 'white', borderRadius: 15, padding: 20, marginBottom: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
-  cardDescription: { fontSize: 14, color: '#666', lineHeight: 22 },
-  input: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 12, fontSize: 14, marginBottom: 12, backgroundColor: '#f9f9f9', textAlign: 'right' },
+  card: { backgroundColor: '#16213e', borderRadius: 15, padding: 20, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#667eea' },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 15 },
+  cardDescription: { fontSize: 14, color: '#aaa', lineHeight: 22 },
+  
+  input: { borderWidth: 1, borderColor: '#0f3460', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 12, fontSize: 14, marginBottom: 12, backgroundColor: '#0f3460', color: '#fff' },
   bioInput: { textAlignVertical: 'top', paddingTop: 12 },
-  platformCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, marginBottom: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5 },
-  platformTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 5 },
-  platformSubtitle: { fontSize: 12, color: '#999', marginBottom: 12 },
-  accountInputWrapper: { marginBottom: 8 },
-  socialInput: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 10, fontSize: 14, backgroundColor: '#f9f9f9', textAlign: 'right', marginBottom: 4 },
-  inputError: { borderColor: '#ff6b6b', backgroundColor: '#ffe0e0' },
-  errorText: { color: '#c62828', fontSize: 12, marginBottom: 8, textAlign: 'right' },
-  generateButton: { backgroundColor: '#667eea', paddingVertical: 15, borderRadius: 12, marginTop: 10, marginBottom: 20 },
+
+  platformCard: { backgroundColor: '#16213e', borderRadius: 15, padding: 20, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#667eea' },
+  platformTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 5 },
+  platformSubtitle: { fontSize: 12, color: '#888', marginBottom: 12 },
+
+  socialInput: { borderWidth: 1, borderColor: '#0f3460', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 10, fontSize: 14, backgroundColor: '#0f3460', color: '#fff', marginBottom: 8 },
+  inputError: { borderColor: '#e74c3c', backgroundColor: '#2a0a0a' },
+  errorText: { color: '#e74c3c', fontSize: 12, marginBottom: 8, textAlign: 'right' },
+
+  generateButton: { backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', paddingVertical: 15, borderRadius: 12, marginTop: 10, marginBottom: 20, shadowColor: '#667eea', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   generateButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
-  profileCard: { backgroundColor: 'white', borderRadius: 15, padding: 20, marginBottom: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5 },
-  profileName: { fontSize: 24, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 10 },
-  profileBio: { fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20, lineHeight: 22 },
-  profileSection: { marginBottom: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+
+  uploadButton: { backgroundColor: '#0f3460', paddingVertical: 15, borderRadius: 12, marginTop: 15, borderWidth: 2, borderColor: '#667eea' },
+  uploadButtonText: { color: '#667eea', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+
+  profileCard: { backgroundColor: '#16213e', borderRadius: 15, padding: 20, marginBottom: 15 },
+  profileName: { fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 10 },
+  profileBio: { fontSize: 14, color: '#aaa', textAlign: 'center', marginBottom: 20, lineHeight: 22 },
+
+  qrContainer: { backgroundColor: '#0f3460', borderRadius: 15, padding: 20, alignItems: 'center', marginBottom: 20 },
+  qrLabel: { fontSize: 14, fontWeight: 'bold', color: '#667eea', marginBottom: 10 },
+  qrBox: { backgroundColor: '#fff', borderRadius: 10, padding: 10 },
+
+  profileSection: { marginBottom: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#0f3460' },
   profileSectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#667eea', marginBottom: 10 },
-  socialLink: { backgroundColor: '#f5f5f5', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, marginBottom: 8 },
-  socialLinkText: { color: '#667eea', fontSize: 13, textAlign: 'right' },
-  jsonBox: { backgroundColor: '#f9f9f9', borderRadius: 10, padding: 12, marginBottom: 15, borderWidth: 1, borderColor: '#e0e0e0' },
-  jsonLabel: { fontSize: 12, fontWeight: 'bold', color: '#666', marginBottom: 8 },
-  jsonContent: { fontSize: 11, color: '#333', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', backgroundColor: 'white', padding: 8, borderRadius: 6, textAlign: 'right' },
-  resetButton: { backgroundColor: '#999', paddingVertical: 12, borderRadius: 10 },
+  socialLink: { backgroundColor: '#0f3460', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#667eea' },
+  socialLinkText: { color: '#667eea', fontSize: 13 },
+
+  resetButton: { backgroundColor: '#e74c3c', paddingVertical: 12, borderRadius: 10 },
   resetButtonText: { color: 'white', fontSize: 14, fontWeight: 'bold', textAlign: 'center' },
 });
