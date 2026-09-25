@@ -2,23 +2,54 @@
   "expo": {
     "name": "QR Rights",
     "slug": "qr-rights",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
-    "platforms": ["ios", "android", "web"],
-    "sdkVersion": "49.0.0",
-    "android": {
-      "package": "com.qrrights.app",
-      "versionCode": 1,
-      "compileSdkVersion": 33,
-      "targetSdkVersion": 33,
-      "minSdkVersion": 21,
-      "adaptiveIcon": {
-        "backgroundColor": "#667eea"
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f3460"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.qrrights.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "نحتاج الوصول للكاميرا لمسح QR Code",
+        "NSPhotoLibraryUsageDescription": "نحتاج الوصول للصور لقراءة QR Code"
       }
     },
-    "ios": {
-      "bundleIdentifier": "com.qrrights.app",
-      "supportsTablet": true
-    }
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f3460"
+      },
+      "package": "com.qrrights.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "نحتاج الوصول للكاميرا"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "نحتاج الوصول للصور"
+        }
+      ]
+    ]
   }
 }
