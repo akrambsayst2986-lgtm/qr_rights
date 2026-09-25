@@ -7,8 +7,9 @@
     "platforms": ["ios", "android", "web"],
     "android": {
       "package": "com.qrrights.app",
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#667eea"
       }
     },
