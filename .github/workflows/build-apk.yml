@@ -13,17 +13,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ نستخدم Node.js 18 (الأكثر استقراراً مع Expo 49)
+      # ✅ نستخدم Node.js 18 (الأكثر استقراراَ مع Expo 49)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18' 
 
-      # ✅ نضيف خطوة تنظيف قبل التثبيت لضمان عدم وجود ملفات قديمة
+      # ✅ ننظف الكاش لضمان تثبيت نظيف
       - name: Clean npm cache
         run: npm cache clean --force
 
-      # ✅ نستخدم --legacy-peer-deps لتجاوز التعارضات دون كسر التثبيت
+      # ✅ نستخدم --legacy-peer-deps لتجاوز التعارضات
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
@@ -33,10 +33,31 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      # ✅ الحل الجذري: نستخدم المسار الكامل لسdkmanager
       - name: Accept Licenses & Setup Env
         run: |
           export ANDROID_HOME=$HOME/android-sdk
           mkdir -p $ANDROID_HOME/licenses
-          yes | sdkmanager --licenses || true
+          
+          # نستدعي sdkmanager بالمسار الكامل الموجود على سيرفرات GitHub
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          
+          # نضع مفاتيح الترخيص يدوياَ كاحتياط
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" > $ANDROID_HOME/licenses/android-ndk-license
+
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: qr-rights-app-release
+          path: android/app/build/outputs/apk/release/*.apk
