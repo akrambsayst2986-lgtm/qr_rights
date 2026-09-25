@@ -4,9 +4,9 @@
     "slug": "qr-rights",
     "version": "2.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png", // ← تأكد من وجود icon.png
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    // تم حذف قسم splash هنا
+    
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -20,7 +20,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png", // ← تأكد من وجود adaptive-icon.png
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f3460"
       },
       "package": "com.qrrights.app",
@@ -31,7 +31,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png" // ← تأكد من وجود favicon.png
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       [
