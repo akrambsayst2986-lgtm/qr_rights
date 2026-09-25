@@ -1,476 +1,402 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  Platform,
-  Linking,
-  PanResponder,
-  Animated,
-  Image,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, 
+  Alert, Linking, Image, Modal, Platform
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg'; // ✅ تم التصحيح هنا
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons'; // مكتبة الأيقونات الاحترافية
+import QRCode from 'react-native-qrcode-svg';
 
-// صيغ صحيحة للروابط
-const SOCIAL_PATTERNS = {
-  facebook: /^(https?:\/\/)?(www\.)?facebook\.com\/[\w\-\.]+\/?(\?.*)?$/i,
-  instagram: /^(https?:\/\/)?(www\.)?instagram\.com\/[\w\.]+\/?(\?.*)?$/i,
-  twitter: /^(https?:\/\/)?(www\.)?twitter\.com\/[\w]+\/?(\?.*)?$/i,
-  tiktok: /^(https?:\/\/)?(www\.)?tiktok\.com\/@[\w\.]+\/?(\?.*)?$/i,
-  youtube: /^(https?:\/\/)?(www\.|m\.)?youtube\.com\/(user|channel|c)\/[\w\-]+\/?(\?.*)?$/i,
-  reddit: /^(https?:\/\/)?(www\.)?reddit\.com\/(u|user)\/[\w\-]+\/?(\?.*)?$/i,
-  discord: /^(https?:\/\/)?(www\.)?discord\.gg\/[\w]+\/?(\?.*)?$/i,
-};
-
+// --- إعدادات المنصات والألوان ---
 const PLATFORMS = [
-  { id: 'facebook', name: 'Facebook', icon: '📘', color: '#1877F2' },
-  { id: 'instagram', name: 'Instagram', icon: '📷', color: '#E1306C' },
-  { id: 'twitter', name: 'Twitter', icon: '🐦', color: '#1DA1F2' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵', color: '#FF0000' },
-  { id: 'youtube', name: 'YouTube', icon: '📺', color: '#FF0000' },
-  { id: 'reddit', name: 'Reddit', icon: '🔴', color: '#FF4500' },
-  { id: 'discord', name: 'Discord', icon: '💬', color: '#5865F2' },
+  { id: 'facebook', name: 'Facebook', icon: 'logo-facebook', color: '#1877F2' },
+  { id: 'instagram', name: 'Instagram', icon: 'logo-instagram', color: '#E1306C' },
+  { id: 'twitter', name: 'Twitter/X', icon: 'logo-twitter', color: '#1DA1F2' },
+  { id: 'tiktok', name: 'TikTok', icon: 'logo-tiktok', color: '#000000' },
+  { id: 'youtube', name: 'YouTube', icon: 'logo-youtube', color: '#FF0000' },
+  { id: 'reddit', name: 'Reddit', icon: 'logo-reddit', color: '#FF4500' },
+  { id: 'discord', name: 'Discord', icon: 'logo-discord', color: '#5865F2' },
 ];
-
-const validateURL = (url, platform) => {
-  if (!url.trim()) return true;
-  const pattern = SOCIAL_PATTERNS[platform];
-  if (!pattern) return true;
-  return pattern.test(url);
-};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('create');
   const [showAbout, setShowAbout] = useState(false);
-  const [creatorName, setCreatorName] = useState('');
-  const [creatorBio, setCreatorBio] = useState('');
   
-  const [socialAccounts, setSocialAccounts] = useState(
-    PLATFORMS.reduce((acc, platform) => {
-      acc[platform.id] = ['', '', ''];
-      return acc;
-    }, {})
-  );
+  // بيانات المستخدم
+  const [creatorName, setCreatorName] = useState('');
+  const [bgImage, setBgImage] = useState(null); // صورة الخلفية
+  
+  // نظام الحسابات الديناميكي
+  // الشكل: { facebook: ['url1', 'url2'], instagram: ['url1'] }
+  const [accounts, setAccounts] = useState({}); 
 
-  const [displayProfile, setDisplayProfile] = useState(null);
-  const [errors, setErrors] = useState({});
-  const [qrDataUrl, setQrDataUrl] = useState(null);
+  // حالة العرض النهائية
+  const [generatedProfile, setGeneratedProfile] = useState(null);
 
-  // Pan responder for swipe to close modal
-  const pan = useRef(new Animated.ValueXY()).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderRelease: (e, { dy }) => {
-        if (dy > 100) {
-          setShowAbout(false);
-        }
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-        }).start();
-      },
-    })
-  ).current;
-
-  const updateSocialAccount = (platform, index, value) => {
-    setSocialAccounts(prev => ({
+  // دالة إضافة حساب جديد لمنصة معينة
+  const addAccount = (platformId) => {
+    setAccounts(prev => ({
       ...prev,
-      [platform]: [
-        ...prev[platform].slice(0, index),
-        value,
-        ...prev[platform].slice(index + 1)
-      ]
-    }));
-    setErrors(prev => ({
-      ...prev,
-      [`${platform}-${index}`]: null
+      [platformId]: [...(prev[platformId] || []), ''] // أضف خانة فارغة جديدة
     }));
   };
 
-  const validateAndGenerate = () => {
-    if (!creatorName.trim()) {
-      Alert.alert('خطأ', 'الرجاء إدخال اسمك');
-      return;
-    }
+  // دالة تحديث قيمة حساب محدد
+  const updateAccount = (platformId, index, value) => {
+    const newAccounts = [...(accounts[platformId] || [])];
+    newAccounts[index] = value;
+    setAccounts(prev => ({ ...prev, [platformId]: newAccounts }));
+  };
 
-    const newErrors = {};
-    let hasErrors = false;
+  // دالة حذف حساب
+  const removeAccount = (platformId, index) => {
+    const newAccounts = [...(accounts[platformId] || [])];
+    newAccounts.splice(index, 1);
+    setAccounts(prev => ({ ...prev, [platformId]: newAccounts.filter(Boolean) }));
+  };
 
-    Object.keys(socialAccounts).forEach(platform => {
-      socialAccounts[platform].forEach((url, index) => {
-        if (url.trim() && !validateURL(url, platform)) {
-          newErrors[`${platform}-${index}`] = 'صيغة الرابط غير صحيحة';
-          hasErrors = true;
-        }
-      });
+  // اختيار صورة خلفية
+  const pickBackground = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
     });
 
-    if (hasErrors) {
-      setErrors(newErrors);
-      Alert.alert('تحذير', 'تحقق من الروابط المشار إليها بـ ⚠️');
+    if (!result.canceled) {
+      setBgImage(result.assets[0].uri);
+    }
+  };
+
+  // توليد الملف والعرض
+  const generateProfile = () => {
+    if (!creatorName.trim()) {
+      Alert.alert('خطأ', 'الرجاء إدخال اسمك أولاَ');
       return;
     }
 
-    const activeAccounts = {};
-    Object.keys(socialAccounts).forEach(platform => {
-      activeAccounts[platform] = socialAccounts[platform].filter(url => url.trim());
+    // تنظيف البيانات (حذف الحقول الفارغة)
+    const cleanAccounts = {};
+    Object.keys(accounts).forEach(key => {
+      const validUrls = accounts[key].filter(url => url.trim() !== '');
+      if (validUrls.length > 0) {
+        cleanAccounts[key] = validUrls;
+      }
     });
 
     const profileData = {
       name: creatorName,
-      bio: creatorBio,
-      socials: activeAccounts,
+      socials: cleanAccounts,
+      bg: bgImage ? 'uploaded_image' : null, // نعلم بوجود صورة فقط لتقليل حجم JSON
       timestamp: new Date().toISOString(),
     };
 
-    setDisplayProfile(profileData);
+    setGeneratedProfile(profileData);
   };
 
-  const generateJSON = () => {
-    if (!displayProfile) return '';
-    return JSON.stringify(displayProfile);
-  };
-
-  const handleReset = () => {
-    setCreatorName('');
-    setCreatorBio('');
-    setSocialAccounts(
-      PLATFORMS.reduce((acc, platform) => {
-        acc[platform.id] = ['', '', ''];
-        return acc;
-      }, {})
-    );
-    setDisplayProfile(null);
-    setErrors({});
-    setQrDataUrl(null);
+  // إنشاء نص الـ QR (JSON مضغوط)
+  const getQRValue = () => {
+    if (!generatedProfile) return '';
+    // نحذف الصورة من الـ JSON لأنها قد تكون كبيرة جداَ ولا تصلح للنص
+    const dataForQR = { ...generatedProfile, bg: undefined };
+    return JSON.stringify(dataForQR);
   };
 
   return (
     <View style={styles.container}>
-      {/* DARK MODE MODAL */}
-      {showAbout && (
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowAbout(false)}
-        >
-          <Animated.View
-            style={[
-              styles.modal,
-              {
-                transform: [{ translateY: pan.y }],
-              },
-            ]}
-            {...panResponder.panHandlers}
-          >
-            <View style={styles.dragHandle} />
-            
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowAbout(false)}
-            >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.modalTitle}>👨‍ حول المطور</Text>
-            
-            <View style={styles.developerCard}>
-              <Text style={styles.developerName}>Alexei</Text>
-              <Text style={styles.developerRole}>محمول و ويب</Text>
-
-              <TouchableOpacity
-                style={[styles.socialButton, { backgroundColor: '#1877F2' }]}
-                onPress={() => Linking.openURL('https://www.facebook.com/Alexei2986')}
-              >
-                <Text style={styles.socialButtonText}>📘 Facebook</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.socialButton, { backgroundColor: '#E1306C' }]}
-                onPress={() => Linking.openURL('https://www.instagram.com/z.e.r.o.12_x.43')}
-              >
-                <Text style={styles.socialButtonText}>📷 Instagram</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.modalDescription}>
-                شكراً لاستخدامك QR Rights ✨
-              </Text>
-            </View>
-          </Animated.View>
-        </TouchableOpacity>
-      )}
-
-      {/* HEADER - DARK */}
+      
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.aboutButton}
-          onPress={() => setShowAbout(true)}
-        >
-          <Text style={styles.aboutButtonText}>👨‍💻</Text>
+        <TouchableOpacity onPress={() => setShowAbout(true)} style={styles.avatarBtn}>
+           <Text style={{fontSize: 24}}>👨‍💻</Text>
         </TouchableOpacity>
-        
-        <Text style={styles.headerTitle}>🛡️ QR Rights</Text>
-        <Text style={styles.headerSubtitle}>حماية حقوق المحتوى الخاص بك</Text>
+        <Text style={styles.title}>🛡️ QR Rights Pro</Text>
+        <Text style={styles.subtitle}>احمية هويتك الرقمية باحترافية</Text>
       </View>
 
-      {/* TABS - DARK */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'create' && styles.tabButtonActive]}
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'create' && styles.activeTab]}
           onPress={() => setActiveTab('create')}
         >
-          <Text style={[styles.tabButtonText, activeTab === 'create' && styles.tabButtonTextActive]}>
-            إنشاء
-          </Text>
+          <Text style={[styles.tabText, activeTab === 'create' && styles.activeTabText]}>إنشاء ملف</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'scan' && styles.tabButtonActive]}
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'scan' && styles.activeTab]}
           onPress={() => setActiveTab('scan')}
         >
-          <Text style={[styles.tabButtonText, activeTab === 'scan' && styles.tabButtonTextActive]}>
-            مسح ضوئي
-          </Text>
+          <Text style={[styles.tabText, activeTab === 'scan' && styles.activeTabText]}>مسح رمز</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        
         {activeTab === 'create' ? (
-          <View style={styles.section}>
-            {!displayProfile ? (
-              <>
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>معلوماتك</Text>
-
-                  <TextInput
-                    style={styles.input}
-                    placeholder="اسمك أو اسم علامتك التجارية"
-                    placeholderTextColor="#888"
-                    value={creatorName}
-                    onChangeText={setCreatorName}
-                  />
-
-                  <TextInput
-                    style={[styles.input, styles.bioInput]}
-                    placeholder="وصف مختصر (اختياري)"
-                    placeholderTextColor="#888"
-                    value={creatorBio}
-                    onChangeText={setCreatorBio}
-                    multiline={true}
-                    numberOfLines={3}
-                  />
-                </View>
-
-                {PLATFORMS.map(platform => (
-                  <View key={platform.id} style={styles.platformCard}>
-                    <Text style={styles.platformTitle}>
-                      {platform.icon} {platform.name}
-                    </Text>
-                    <Text style={styles.platformSubtitle}>
-                      أضف حتى 3 حسابات
-                    </Text>
-
-                    {[0, 1, 2].map((index) => (
-                      <View key={`${platform.id}-${index}`}>
-                        <TextInput
-                          style={[
-                            styles.socialInput,
-                            errors[`${platform.id}-${index}`] && styles.inputError
-                          ]}
-                          placeholder={`الحساب ${index + 1}`}
-                          placeholderTextColor="#888"
-                          value={socialAccounts[platform.id][index]}
-                          onChangeText={(text) =>
-                            updateSocialAccount(platform.id, index, text)
-                          }
-                        />
-                        {errors[`${platform.id}-${index}`] && (
-                          <Text style={styles.errorText}>
-                            ⚠️ {errors[`${platform.id}-${index}`]}
-                          </Text>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                ))}
-
-                <TouchableOpacity
-                  style={styles.generateButton}
-                  onPress={validateAndGenerate}
-                >
-                  <Text style={styles.generateButtonText}>🔧 إنشاء ملفي و QR</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <View style={styles.profileCard}>
-                  <Text style={styles.profileName}>{displayProfile.name}</Text>
-                  {displayProfile.bio && (
-                    <Text style={styles.profileBio}>{displayProfile.bio}</Text>
-                  )}
-
-                  {/* QR CODE SECTION */}
-                  <View style={styles.qrContainer}>
-                    <Text style={styles.qrLabel}>📱 رمز QR الخاص بك</Text>
-                    <View style={styles.qrBox}>
-                      <QRCode
-                        value={generateJSON()}
-                        size={200}
-                        color="#667eea"
-                        backgroundColor="#ffffff"
-                        quietZone={10}
-                      />
-                    </View>
-                  </View>
-
-                  {/* SOCIAL LINKS */}
-                  {Object.keys(displayProfile.socials).map(platformId => {
-                    const platform = PLATFORMS.find(p => p.id === platformId);
-                    if (displayProfile.socials[platformId].length === 0) return null;
-
-                    return (
-                      <View key={platformId} style={styles.profileSection}>
-                        <Text style={styles.profileSectionTitle}>
-                          {platform.icon} {platform.name}
-                        </Text>
-                        {displayProfile.socials[platformId].map((url, idx) => (
-                          <TouchableOpacity
-                            key={idx}
-                            style={styles.socialLink}
-                            onPress={() => {
-                              if (url.startsWith('http')) {
-                                Linking.openURL(url).catch(err => console.error('Error:', err));
-                              } else {
-                                Linking.openURL(`https://${url}`).catch(err => console.error('Error:', err));
-                              }
-                            }}
-                          >
-                            <Text style={styles.socialLinkText}>
-                              🔗 {url.substring(0, 35)}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })}
-
-                  <TouchableOpacity
-                    style={styles.resetButton}
-                    onPress={handleReset}
-                  >
-                    <Text style={styles.resetButtonText}>← إنشاء ملف جديد</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        ) : (
-          <View style={styles.section}>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>🔍 مسح QR Code</Text>
-              <Text style={styles.cardDescription}>
-                اختر صورة من الهاتف تحتوي على QR Code
-              </Text>
+          !generatedProfile ? (
+            /* --- صفحة الإدخال --- */
+            <View style={styles.formSection}>
               
-              <TouchableOpacity
-                style={styles.uploadButton}
-                onPress={() => Alert.alert('قريباً', 'سيتم إضافة خاصية قراءة الصور قريباً')}
-              >
-                <Text style={styles.uploadButtonText}>📤 اختر صورة QR</Text>
+              {/* معلومات أساسية */}
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>المعلومات الأساسية</Text>
+                
+                <TextInput
+                  style={styles.input}
+                  placeholder="اسم المستخدم / العلامة التجارية"
+                  placeholderTextColor="#888"
+                  value={creatorName}
+                  onChangeText={setCreatorName}
+                />
+
+                {/* رفع صورة خلفية (اختياري للعرض المحلي) */}
+                <TouchableOpacity style={styles.imageUploadBtn} onPress={pickBackground}>
+                  {bgImage ? (
+                    <Image source={{uri: bgImage}} style={styles.previewImg} resizeMode="cover"/>
+                  ) : (
+                    <>
+                      <Ionicons name="image-outline" size={24} color="#aaa" />
+                      <Text style={styles.uploadText}>رفع صورة خلفية (اختياري)</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* قائمة المنصات */}
+              {PLATFORMS.map(platform => (
+                <View key={platform.id} style={styles.platformCard}>
+                  <View style={styles.platformHeader}>
+                    <Ionicons name={platform.icon} size={20} color={platform.color} />
+                    <Text style={styles.platformName}>{platform.name}</Text>
+                    <TouchableOpacity onPress={() => addAccount(platform.id)} style={styles.addBtnSmall}>
+                       <Ionicons name="add-circle" size={24} color="#667eea" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* عرض الحسابات المضافة لهذا المنصة */}
+                  {(accounts[platform.id] || []).map((url, index) => (
+                    <View key={index} style={styles.accountRow}>
+                      <TextInput
+                        style={styles.smallInput}
+                        placeholder={`رابط الحساب ${index + 1}`}
+                        placeholderTextColor="#666"
+                        value={url}
+                        onChangeText={(text) => updateAccount(platform.id, index, text)}
+                      />
+                      <TouchableOpacity onPress={() => removeAccount(platform.id, index)}>
+                         <Ionicons name="trash-bin-outline" size={20} color="#ff4757" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  
+                  {(!accounts[platform.id] || accounts[platform.id].length === 0) && (
+                     <Text style={styles.emptyHint}>لا توجد حسابات مضافة بعد.</Text>
+                  )}
+                </View>
+              ))}
+
+              <TouchableOpacity style={styles.generateBigBtn} onPress={generateProfile}>
+                <Text style={styles.generateBigBtnText}>✨ توليد البطاقة الذكية</Text>
               </TouchableOpacity>
+
             </View>
+          ) : (
+            /* --- صفحة العرض (البطاقة النهائية) --- */
+            <View style={styles.displaySection}>
+              
+              {/* تصميم البطاقة الشبيه بالإنستاغرام */}
+              <View style={styles.smartCard}>
+                {/* خلفية الصورة إذا وجدت */}
+                {bgImage && (
+                   <Image source={{uri: bgImage}} style={styles.cardBgImage} resizeMode="cover" />
+                )}
+                
+                <View style={styles.cardOverlay}>
+                  <Text style={styles.displayName}>{generatedProfile.name}</Text>
+                  
+                  {/* منطقة الـ QR الاحترافية */}
+                  <View style={styles.qrWrapper}>
+                     <View style={styles.qrInnerBox}>
+                        {/* هنا نضع اللوجو في المنتصف */}
+                        <QRCode
+                          value={getQRValue()}
+                          size={180}
+                          bgColor="transparent"
+                          fgColor="#ffffff"
+                          logo={{ uri: require('./assets/adaptive-icon.png') }} // يستخدم أيقونة التطبيق كلوجو
+                          logoSize={40}
+                          logoBackgroundColor='transparent'
+                        />
+                     </View>
+                     
+                     {/* اسم المستخدم تحت الرمز */}
+                     <View style={styles.usernameTag}>
+                        <Text style={styles.usernameText}>@{generatedProfile.name.replace(/\s/g, '')}</Text>
+                     </View>
+                  </View>
+
+                  {/* روابط التواصل المختصرة */}
+                  <View style={styles.linksList}>
+                    {Object.entries(generatedProfile.socials).map(([platId, urls]) => {
+                       const platInfo = PLATFORMS.find(p => p.id === platId);
+                       return (
+                         <View key={platId} style={styles.linkItem}>
+                            <Ionicons name={platInfo?.icon} size={16} color={platInfo?.color} />
+                            <Text style={styles.linkCount}>{urls.length} {platInfo?.name}</Text>
+                         </View>
+                       );
+                    })}
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('تم!', 'يمكنك أخذ لقطة شاشة للرمز الآن.')}>
+                 <Text style={styles.actionBtnText}>📸 حفظ كصورة</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.backBtn} onPress={() => setGeneratedProfile(null)}>
+                 <Text style={styles.backBtnText}>← تعديل البيانات</Text>
+              </TouchableOpacity>
+
+            </View>
+          )
+        ) : (
+          /* --- تبويب المسح (Placeholder) --- */
+          <View style={styles.scanPlaceholder}>
+             <Ionicons name="qr-code-outline" size={60} color="#555" />
+             <Text style={styles.scanText}>ميزة المسح الضوئي قيد التطوير...</Text>
+             <Text style={styles.subScanText}>ستتمكن قريباَ من مسح رموز الآخرين وعرض ملفاتهم.</Text>
           </View>
         )}
       </ScrollView>
+
+      {/* نافذة حول المطور */}
+      <Modal visible={showAbout} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>👨‍💻 حول المطور</Text>
+            
+            <TouchableOpacity 
+              style={[styles.devLinkBtn, {backgroundColor: '#1877F2'}]}
+              onPress={() => Linking.openURL('https://www.facebook.com/Alexei2986')}
+            >
+               <Ionicons name="logo-facebook" size={20} color="white" />
+               <Text style={styles.devLinkText}>Facebook - Alexei</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.devLinkBtn, {backgroundColor: '#E1306C'}]}
+              onPress={() => Linking.openURL('https://www.instagram.com/z.e.r.o.12_x.43')}
+            >
+               <Ionicons name="logo-instagram" size={20} color="white" />
+               <Text style={styles.devLinkText}>Instagram - z.e.r.o.12_x.43</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowAbout(false)}>
+               <Text style={styles.closeModalText}>إغلاق ✕</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
+  container: { flex: 1, backgroundColor: '#0f172a' }, // أزرق داكن جداً
+  header: { padding: 20, alignItems: 'center', backgroundColor: '#1e293b', borderBottomWidth: 1, borderColor: '#334155' },
+  avatarBtn: { position: 'absolute', left: 20, top: 20, padding: 5 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
+  subtitle: { fontSize: 12, color: '#94a3b8', marginTop: 5 },
   
-  // MODAL - DARK
-  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'flex-end', zIndex: 1000 },
-  modal: { backgroundColor: '#16213e', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20, paddingBottom: 40, maxHeight: '80%' },
-  dragHandle: { width: 40, height: 4, backgroundColor: '#667eea', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
-  closeButton: { position: 'absolute', top: 15, right: 15, width: 35, height: 35, borderRadius: 50, backgroundColor: '#0f3460', justifyContent: 'center', alignItems: 'center' },
-  closeButtonText: { fontSize: 20, color: '#fff', fontWeight: 'bold' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 20, textAlign: 'center' },
-  developerCard: { backgroundColor: '#0f3460', borderRadius: 15, padding: 20, alignItems: 'center' },
-  developerName: { fontSize: 22, fontWeight: 'bold', color: '#667eea', marginBottom: 5 },
-  developerRole: { fontSize: 14, color: '#aaa', marginBottom: 20, fontStyle: 'italic' },
-  socialButton: { width: '100%', paddingVertical: 12, borderRadius: 10, marginBottom: 10, justifyContent: 'center', alignItems: 'center' },
-  socialButtonText: { color: 'white', fontSize: 14, fontWeight: '600' },
-  modalDescription: { marginTop: 15, fontSize: 13, color: '#888', textAlign: 'center' },
+  tabsContainer: { flexDirection: 'row', padding: 10, gap: 10 },
+  tab: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#1e293b', alignItems: 'center' },
+  activeTab: { backgroundColor: '#6366f1' },
+  tabText: { color: '#94a3b8', fontWeight: '600' },
+  activeTabText: { color: '#fff' },
 
-  // HEADER - DARK
-  header: { backgroundColor: '#0f3460', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20, alignItems: 'center', position: 'relative' },
-  aboutButton: { position: 'absolute', top: 10, right: 15, width: 40, height: 40, borderRadius: 50, backgroundColor: 'rgba(102, 126, 234, 0.2)', justifyContent: 'center', alignItems: 'center' },
-  aboutButtonText: { fontSize: 20 },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
-  headerSubtitle: { fontSize: 14, color: '#aaa' },
-
-  // TABS - DARK
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 15, backgroundColor: '#16213e', borderBottomWidth: 1, borderBottomColor: '#0f3460' },
-  tabButton: { flex: 1, paddingVertical: 10, paddingHorizontal: 15, marginHorizontal: 5, borderRadius: 20, backgroundColor: '#0f3460' },
-  tabButtonActive: { backgroundColor: '#667eea' },
-  tabButtonText: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: '#888' },
-  tabButtonTextActive: { color: 'white' },
-
-  // CONTENT - DARK
-  content: { flex: 1, padding: 15 },
-  section: { marginBottom: 20 },
-  card: { backgroundColor: '#16213e', borderRadius: 15, padding: 20, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#667eea' },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 15 },
-  cardDescription: { fontSize: 14, color: '#aaa', lineHeight: 22 },
+  scrollContent: { padding: 15, paddingBottom: 50 },
   
-  input: { borderWidth: 1, borderColor: '#0f3460', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 12, fontSize: 14, marginBottom: 12, backgroundColor: '#0f3460', color: '#fff' },
-  bioInput: { textAlignVertical: 'top', paddingTop: 12 },
+  // Forms
+  card: { backgroundColor: '#1e293b', borderRadius: 15, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: '#334155' },
+  cardTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
+  input: { backgroundColor: '#0f172a', borderRadius: 8, padding: 12, color: '#fff', borderWidth: 1, borderColor: '#334155', marginBottom: 10 },
+  
+  imageUploadBtn: { height: 80, borderRadius: 10, borderWidth: 1, borderColor: '#475569', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' },
+  previewImg: { width: '100%', height: '100%', borderRadius: 10 },
+  uploadText: { color: '#94a3b8', fontSize: 12, marginTop: 5 },
 
-  platformCard: { backgroundColor: '#16213e', borderRadius: 15, padding: 20, marginBottom: 15, borderLeftWidth: 4, borderLeftColor: '#667eea' },
-  platformTitle: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 5 },
-  platformSubtitle: { fontSize: 12, color: '#888', marginBottom: 12 },
+  platformCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#334155' },
+  platformHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  platformName: { color: '#fff', fontWeight: 'bold', marginLeft: 10, flex: 1 },
+  addBtnSmall: { padding: 2 },
+  
+  accountRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 },
+  smallInput: { flex: 1, backgroundColor: '#0f172a', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, color: '#fff', borderWidth: 1, borderColor: '#334155', fontSize: 13 },
+  emptyHint: { color: '#64748b', fontSize: 11, fontStyle: 'italic', textAlign: 'center', marginVertical: 5 },
 
-  socialInput: { borderWidth: 1, borderColor: '#0f3460', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 10, fontSize: 14, backgroundColor: '#0f3460', color: '#fff', marginBottom: 8 },
-  inputError: { borderColor: '#e74c3c', backgroundColor: '#2a0a0a' },
-  errorText: { color: '#e74c3c', fontSize: 12, marginBottom: 8, textAlign: 'right' },
+  generateBigBtn: { backgroundColor: '#6366f1', paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginTop: 10, shadowColor: '#6366f1', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  generateBigBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 
-  generateButton: { 
-    backgroundColor: '#667eea', // ✅ لون ثابت آمن
-    paddingVertical: 15, 
-    borderRadius: 12, 
-    marginTop: 10, 
-    marginBottom: 20, 
-    shadowColor: '#667eea', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8, 
-    elevation: 8 
+  // Display Card (The Fancy Part)
+  displaySection: { alignItems: 'center' },
+  smartCard: { 
+    width: '100%', 
+    height: 450, 
+    borderRadius: 20, 
+    overflow: 'hidden', 
+    backgroundColor: '#1e293b',
+    borderWidth: 2,
+    borderColor: '#6366f1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 10
   },
-  generateButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+  cardBgImage: { position: 'absolute', width: '100%', height: '100%', opacity: 0.3 },
+  cardOverlay: { flex: 1, padding: 20, justifyContent: 'center', alignItems: 'center' },
+  displayName: { color: '#fff', fontSize: 28, fontWeight: 'bold', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4, marginBottom: 20 },
+  
+  qrWrapper: { alignItems: 'center', marginBottom: 20 },
+  qrInnerBox: { 
+    backgroundColor: 'rgba(255,255,255,0.1)', 
+    padding: 15, 
+    borderRadius: 15, 
+  },
+  usernameTag: { 
+    backgroundColor: '#6366f1', 
+    paddingHorizontal: 15, 
+    paddingVertical: 5, 
+    borderRadius: 20, 
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#fff'
+  },
+  usernameText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 
-  uploadButton: { backgroundColor: '#0f3460', paddingVertical: 15, borderRadius: 12, marginTop: 15, borderWidth: 2, borderColor: '#667eea' },
-  uploadButtonText: { color: '#667eea', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+  linksList: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
+  linkItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#334155', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
+  linkCount: { color: '#cbd5e1', fontSize: 12, marginLeft: 5 },
 
-  profileCard: { backgroundColor: '#16213e', borderRadius: 15, padding: 20, marginBottom: 15 },
-  profileName: { fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 10 },
-  profileBio: { fontSize: 14, color: '#aaa', textAlign: 'center', marginBottom: 20, lineHeight: 22 },
+  actionBtn: { backgroundColor: '#10b981', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, marginTop: 20, alignItems: 'center' },
+  actionBtnText: { color: '#fff', fontWeight: 'bold' },
+  backBtn: { marginTop: 15 },
+  backBtnText: { color: '#94a3b8', textDecorationLine: 'underline' },
 
-  qrContainer: { backgroundColor: '#0f3460', borderRadius: 15, padding: 20, alignItems: 'center', marginBottom: 20 },
-  qrLabel: { fontSize: 14, fontWeight: 'bold', color: '#667eea', marginBottom: 10 },
-  qrBox: { backgroundColor: '#fff', borderRadius: 10, padding: 10 },
+  // Scan Placeholder
+  scanPlaceholder: { alignItems: 'center', justifyContent: 'center', height: 400 },
+  scanText: { color: '#fff', fontSize: 18, marginTop: 10, fontWeight: 'bold' },
+  subScanText: { color: '#94a3b8', textAlign: 'center', marginTop: 5 },
 
-  profileSection: { marginBottom: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#0f3460' },
-  profileSectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#667eea', marginBottom: 10 },
-  socialLink: { backgroundColor: '#0f3460', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#667eea' },
-  socialLinkText: { color: '#667eea', fontSize: 13 },
-
-  resetButton: { backgroundColor: '#e74c3c', paddingVertical: 12, borderRadius: 10 },
-  resetButtonText: { color: 'white', fontSize: 14, fontWeight: 'bold', textAlign: 'center' },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#1e293b', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25, minHeight: 300 },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+  devLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 12, marginBottom: 12, gap: 10 },
+  devLinkText: { color: '#fff', fontWeight: 'bold' },
+  closeModalBtn: { marginTop: 20, alignItems: 'center', padding: 10 },
+  closeModalText: { color: '#ef4444', fontWeight: 'bold' },
 });
