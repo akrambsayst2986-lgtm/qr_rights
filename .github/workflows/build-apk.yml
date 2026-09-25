@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
     
     steps:
       - name: Checkout code
@@ -19,64 +18,37 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install npm dependencies
-        run: |
-          npm install --legacy-peer-deps
-          npm install -g expo-cli eas-cli
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
 
-      - name: Setup Java 11 (Required)
-        uses: actions/setup-java@v3
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
         with:
-          distribution: 'corretto'
-          java-version: '11'
+          java-version: '17'
+          distribution: 'temurin'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
-        with:
-          api-level: 31
-          build-tools-version: '31.0.0'
+        uses: android-actions/setup-android@v3
 
-      - name: Accept SDK licenses
-        run: yes | sdkmanager --licenses 2>/dev/null || true
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android --clean
 
-      - name: Create prebuild config
+      - name: Accept All Android Licenses
         run: |
-          mkdir -p android
-          echo "sdk.dir=$(dirname $ANDROID_SDK_ROOT)" > android/local.properties
-          echo "org.gradle.jvmargs=-Xmx2048m" >> android/gradle.properties
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          mkdir -p $ANDROID_HOME/licenses
+          echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" >> $ANDROID_HOME/licenses/android-sdk-preview-license
+          echo -e "\nd56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-ndk-license
 
-      - name: Run Expo prebuild
-        run: npx expo prebuild --clean --platform android --non-interactive
-
-      - name: Grant execute permission to gradlew
-        run: chmod +x android/gradlew
-
-      - name: Build Release APK
+      - name: Build APK
         run: |
           cd android
-          ./gradlew clean
-          ./gradlew assembleRelease \
-            -Dorg.gradle.jvmargs="-Xmx2048m" \
-            --no-daemon \
-            --stacktrace
-        env:
-          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
-      - name: Find APK files
-        run: find android -name "*.apk" -type f
-
-      - name: List APK directory
-        run: ls -la android/app/build/outputs/apk/release/
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: qr-rights-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Build Summary
-        if: always()
-        run: echo "✅ Build job completed"
+          name: qr-rights-app-release
+          path: android/app/build/outputs/apk/release/*.apk
