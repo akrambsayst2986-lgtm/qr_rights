@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 60
     
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -20,67 +20,65 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: |
-          npm install --legacy-peer-deps
-          npm install -g expo-cli eas-cli
+        run: npm install --legacy-peer-deps
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Install Expo CLI
+        run: npm install -g expo-cli@latest
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v3
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 34
-          build-tools-version: '34.0.0'
+          api-level: 33
+          build-tools-version: 33.0.2
+          ndk-version: 25.2.9519653
+          
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
 
-      - name: Create expo config
-        run: |
-          echo "EXPO_TOKEN=${{ secrets.EXPO_TOKEN }}" >> .env
-
-      - name: Prebuild Android
+      - name: Prebuild Expo
         run: npx expo prebuild --clean --platform android --non-interactive
 
-      - name: Build APK
+      - name: Setup Gradle permissions
+        run: chmod +x android/gradlew
+
+      - name: Build APK with Gradle
         run: |
           cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease \
+            --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx4096m" \
+            -Dfile.encoding=UTF-8
 
-      - name: Find APK
-        run: |
-          find . -name "*.apk" -type f
-          ls -la android/app/build/outputs/apk/
-
-      - name: Upload APK to Artifacts
+      - name: Upload APK Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qr-rights-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          name: qr-rights-release-apk
+          path: |
+            android/app/build/outputs/apk/release/**/*.apk
+            android/app/build/outputs/apk/**/*.apk
           if-no-files-found: warn
+          retention-days: 30
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+      - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
         with:
-          files: android/app/build/outputs/apk/release/*.apk
+          files: android/app/build/outputs/apk/release/**/*.apk
           body: |
             🎉 QR Rights v2.0.0
             
-            ✨ المميزات الجديدة:
-            ✅ QR Code حقيقي 100%
-            ✅ Dark Mode احترافي
-            ✅ قراءة صور QR من الهاتف
-            ✅ إصلاح صيغ الروابط
-            ✅ إغلاق Modal بـ swipe
-            ✅ واجهة احترافية أكثر
+            ✨ تحديثات:
+            ✅ QR Code حقيقي
+            ✅ Dark Mode
+            ✅ روابط محسّنة
             
-            📥 ثبّت APK من الأسفل
+            📥 حمّل APK من الأسفل
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build Status
-        if: always()
-        run: echo "✅ تم البناء بنجاح!"
