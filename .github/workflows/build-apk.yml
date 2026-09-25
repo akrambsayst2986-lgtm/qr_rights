@@ -13,15 +13,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ تم تغيير الإصدار إلى 20 لحل مشكلة التعارض
+      # ✅ عدنا للإصدار 18 الأكثر استقراراً
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' 
+          node-version: '18' 
 
-      # ✅ تم استخدام --force لتثبيت كل شيء مهما كانت التعارضات
+      # ✅ أمر التثبيت الصحيح الذي يتجاوز التعارضات دون كسر التثبيت
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps --force
+        run: npm install --legacy-peer-deps
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
