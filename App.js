@@ -1,33 +1,38 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, 
-  Alert, Linking, Image, Modal, Platform
+  Alert, Linking, Image, Modal, Platform, SafeAreaView
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons'; // مكتبة الأيقونات الاحترافية
+import { Ionicons } from '@expo/vector-icons'; // للأيقونات العامة
 import QRCode from 'react-native-qrcode-svg';
 
-// --- إعدادات المنصات والألوان ---
+// --- إعدادات المنصات مع ألوان وأيقونات بديلة آمنة ---
 const PLATFORMS = [
   { id: 'facebook', name: 'Facebook', icon: 'logo-facebook', color: '#1877F2' },
   { id: 'instagram', name: 'Instagram', icon: 'logo-instagram', color: '#E1306C' },
   { id: 'twitter', name: 'Twitter/X', icon: 'logo-twitter', color: '#1DA1F2' },
-  { id: 'tiktok', name: 'TikTok', icon: 'logo-tiktok', color: '#000000' },
+  // تم تغيير أيقونة تيك توك لتعمل في جميع الأجهزة
+  { id: 'tiktok', name: 'TikTok', icon: 'musical-notes', color: '#000000' }, 
   { id: 'youtube', name: 'YouTube', icon: 'logo-youtube', color: '#FF0000' },
   { id: 'reddit', name: 'Reddit', icon: 'logo-reddit', color: '#FF4500' },
-  { id: 'discord', name: 'Discord', icon: 'logo-discord', color: '#5865F2' },
+  // تم تغيير أيقونة ديسكورد لتعمل في جميع الأجهزة
+  { id: 'discord', name: 'Discord', icon: 'chatbubbles', color: '#5865F2' },
 ];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('create');
   const [showAbout, setShowAbout] = useState(false);
   
-  // بيانات المستخدم
+  // بيانات المستخدم الأساسية
   const [creatorName, setCreatorName] = useState('');
-  const [bgImage, setBgImage] = useState(null); // صورة الخلفية
+  const [bioText, setBioText] = useState(''); // ✅ أضفنا الوصف الشخصي
   
-  // نظام الحسابات الديناميكي
-  // الشكل: { facebook: ['url1', 'url2'], instagram: ['url1'] }
+  // الصورة الرئيسية (تُستخدم كخلفية وكافتراضي للروابط)
+  const [mainBgImage, setMainBgImage] = useState(null); 
+  
+  // نظام الحسابات الديناميكي مع دعم الصور الفردية
+  // الشكل الجديد: { facebook: [{ url: '', img: null }, ...] }
   const [accounts, setAccounts] = useState({}); 
 
   // حالة العرض النهائية
@@ -37,79 +42,106 @@ export default function App() {
   const addAccount = (platformId) => {
     setAccounts(prev => ({
       ...prev,
-      [platformId]: [...(prev[platformId] || []), ''] // أضف خانة فارغة جديدة
+      [platformId]: [...(prev[platformId] || []), { url: '', img: null }] // كائن يحوي الرابط والصورة
     }));
   };
 
-  // دالة تحديث قيمة حساب محدد
-  const updateAccount = (platformId, index, value) => {
+  // دالة تحديث قيمة رابط محدد
+  const updateUrl = (platformId, index, value) => {
     const newAccounts = [...(accounts[platformId] || [])];
-    newAccounts[index] = value;
+    newAccounts[index] = { ...newAccounts[index], url: value };
     setAccounts(prev => ({ ...prev, [platformId]: newAccounts }));
+  };
+
+  // دالة تحديث صورة لحساب محدد
+  const pickImageForAccount = async (platformId, index) => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const newAccounts = [...(accounts[platformId] || [])];
+      newAccounts[index] = { ...newAccounts[index], img: result.assets[0].uri };
+      setAccounts(prev => ({ ...prev, [platformId]: newAccounts }));
+    }
   };
 
   // دالة حذف حساب
   const removeAccount = (platformId, index) => {
     const newAccounts = [...(accounts[platformId] || [])];
     newAccounts.splice(index, 1);
-    setAccounts(prev => ({ ...prev, [platformId]: newAccounts.filter(Boolean) }));
+    setAccounts(prev => ({ ...prev, [platformId]: newAccounts.filter(acc => acc.url.trim() !== '' || acc.img) }));
   };
 
-  // اختيار صورة خلفية
+  // اختيار صورة خلفية رئيسية
   const pickBackground = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
+      aspect: [9, 16], // نسبة طولية مناسبة للهاتف
+      quality: 0.8,
     });
 
     if (!result.canceled) {
-      setBgImage(result.assets[0].uri);
+      setMainBgImage(result.assets[0].uri);
     }
   };
 
   // توليد الملف والعرض
   const generateProfile = () => {
     if (!creatorName.trim()) {
-      Alert.alert('خطأ', 'الرجاء إدخال اسمك أولاَ');
+      Alert.alert('خطأ', 'الرجاء إدخال اسمك أولاً');
       return;
     }
 
-    // تنظيف البيانات (حذف الحقول الفارغة)
+    // تنظيف البيانات (حذف الحقول الفارغة تماماً)
     const cleanAccounts = {};
     Object.keys(accounts).forEach(key => {
-      const validUrls = accounts[key].filter(url => url.trim() !== '');
-      if (validUrls.length > 0) {
-        cleanAccounts[key] = validUrls;
+      const validItems = accounts[key].filter(item => item.url.trim() !== '');
+      if (validItems.length > 0) {
+        cleanAccounts[key] = validItems.map(item => ({
+          u: item.url, // اختصار للاسم لتقليل حجم JSON
+          i: item.img ? 'has_img' : null // نخبر فقط بوجود صورة لتوفير مساحة
+        }));
       }
     });
 
     const profileData = {
       name: creatorName,
+      bio: bioText, // ✅ حفظ الوصف
       socials: cleanAccounts,
-      bg: bgImage ? 'uploaded_image' : null, // نعلم بوجود صورة فقط لتقليل حجم JSON
+      has_bg: !!mainBgImage, // هل يوجد خلفية؟
       timestamp: new Date().toISOString(),
     };
 
     setGeneratedProfile(profileData);
   };
 
-  // إنشاء نص الـ QR (JSON مضغوط)
+  // إنشاء نص الـ QR (JSON مضغوط جداً)
   const getQRValue = () => {
     if (!generatedProfile) return '';
-    // نحذف الصورة من الـ JSON لأنها قد تكون كبيرة جداَ ولا تصلح للنص
-    const dataForQR = { ...generatedProfile, bg: undefined };
+    // نحذف الصور الحقيقية من الـ JSON لأنها ضخمة ولا تصلح للنص
+    // نحتفظ فقط بالمعلومات النصية
+    const dataForQR = { 
+      n: generatedProfile.name, 
+      b: generatedProfile.bio, 
+      s: generatedProfile.socials 
+    };
     return JSON.stringify(dataForQR);
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
       
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setShowAbout(true)} style={styles.avatarBtn}>
-           <Text style={{fontSize: 24}}>👨‍💻</Text>
+           {/* ✅ أيقونة احترافية بدلاً من الإيموجي */}
+           <Ionicons name="shield-checkmark-circle" size={32} color="#6366f1" />
         </TouchableOpacity>
         <Text style={styles.title}>🛡️ QR Rights Pro</Text>
         <Text style={styles.subtitle}>احمية هويتك الرقمية باحترافية</Text>
@@ -144,20 +176,31 @@ export default function App() {
                 
                 <TextInput
                   style={styles.input}
-                  placeholder="اسم المستخدم / العلامة التجارية"
+                  placeholder="اسم المستخدم / العلامة التجارية *"
                   placeholderTextColor="#888"
                   value={creatorName}
                   onChangeText={setCreatorName}
                 />
 
-                {/* رفع صورة خلفية (اختياري للعرض المحلي) */}
+                {/* ✅ حقل الوصف الشخصي (اختياري) */}
+                <TextInput
+                  style={[styles.input, styles.bioInput]}
+                  placeholder="نبذة عنك (اختياري)"
+                  placeholderTextColor="#888"
+                  multiline={true}
+                  numberOfLines={3}
+                  value={bioText}
+                  onChangeText={setBioText}
+                />
+
+                {/* رفع صورة خلفية رئيسية */}
                 <TouchableOpacity style={styles.imageUploadBtn} onPress={pickBackground}>
-                  {bgImage ? (
-                    <Image source={{uri: bgImage}} style={styles.previewImg} resizeMode="cover"/>
+                  {mainBgImage ? (
+                    <Image source={{uri: mainBgImage}} style={styles.previewImg} resizeMode="cover"/>
                   ) : (
                     <>
                       <Ionicons name="image-outline" size={24} color="#aaa" />
-                      <Text style={styles.uploadText}>رفع صورة خلفية (اختياري)</Text>
+                      <Text style={styles.uploadText}>رفع صورة خلفية رئيسية (اختياري)</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -167,22 +210,38 @@ export default function App() {
               {PLATFORMS.map(platform => (
                 <View key={platform.id} style={styles.platformCard}>
                   <View style={styles.platformHeader}>
-                    <Ionicons name={platform.icon} size={20} color={platform.color} />
-                    <Text style={styles.platformName}>{platform.name}</Text>
+                    <View style={{flexDirection:'row', alignItems:'center'}}>
+                       <Ionicons name={platform.icon} size={20} color={platform.color} />
+                       <Text style={styles.platformName}>{platform.name}</Text>
+                    </View>
+                   
                     <TouchableOpacity onPress={() => addAccount(platform.id)} style={styles.addBtnSmall}>
-                       <Ionicons name="add-circle" size={24} color="#667eea" />
+                       <Ionicons name="add-circle" size={24} color="#6366f1" />
                     </TouchableOpacity>
                   </View>
 
                   {/* عرض الحسابات المضافة لهذا المنصة */}
-                  {(accounts[platform.id] || []).map((url, index) => (
+                  {(accounts[platform.id] || []).map((item, index) => (
                     <View key={index} style={styles.accountRow}>
+                      
+                      {/* ✅ مربع صورة الحساب الفردي */}
+                      <TouchableOpacity 
+                        style={styles.miniAvatarBox}
+                        onPress={() => pickImageForAccount(platform.id, index)}
+                      >
+                        {item.img ? (
+                           <Image source={{uri: item.img}} style={styles.miniAvatarImg} />
+                        ) : (
+                           <Ionicons name="camera-outline" size={16} color="#666" />
+                        )}
+                      </TouchableOpacity>
+
                       <TextInput
                         style={styles.smallInput}
                         placeholder={`رابط الحساب ${index + 1}`}
                         placeholderTextColor="#666"
-                        value={url}
-                        onChangeText={(text) => updateAccount(platform.id, index, text)}
+                        value={item.url}
+                        onChangeText={(text) => updateUrl(platform.id, index, text)}
                       />
                       <TouchableOpacity onPress={() => removeAccount(platform.id, index)}>
                          <Ionicons name="trash-bin-outline" size={20} color="#ff4757" />
@@ -191,7 +250,7 @@ export default function App() {
                   ))}
                   
                   {(!accounts[platform.id] || accounts[platform.id].length === 0) && (
-                     <Text style={styles.emptyHint}>لا توجد حسابات مضافة بعد.</Text>
+                     <Text style={styles.emptyHint}>اضغط + لإضافة حساب.</Text>
                   )}
                 </View>
               ))}
@@ -205,45 +264,62 @@ export default function App() {
             /* --- صفحة العرض (البطاقة النهائية) --- */
             <View style={styles.displaySection}>
               
-              {/* تصميم البطاقة الشبيه بالإنستاغرام */}
+              {/* تصميم البطاقة الشبيه بالستوري */}
               <View style={styles.smartCard}>
                 {/* خلفية الصورة إذا وجدت */}
-                {bgImage && (
-                   <Image source={{uri: bgImage}} style={styles.cardBgImage} resizeMode="cover" />
+                {mainBgImage && (
+                   <Image source={{uri: mainBgImage}} style={styles.cardBgImage} resizeMode="cover" />
                 )}
                 
                 <View style={styles.cardOverlay}>
                   <Text style={styles.displayName}>{generatedProfile.name}</Text>
+                  {generatedProfile.bio && (
+                     <Text style={styles.displayBio}>{generatedProfile.bio}</Text>
+                  )}
                   
                   {/* منطقة الـ QR الاحترافية */}
                   <View style={styles.qrWrapper}>
                      <View style={styles.qrInnerBox}>
-                        {/* هنا نضع اللوجو في المنتصف */}
+                        {/* ✅ معالجة آمنة للصورة داخل QR */}
+                        {/* نستخدم require فقط إذا كان الملف موجوداً فعلاً، وإلا نتركه فارغاً لتجنب الكراش */}
                         <QRCode
                           value={getQRValue()}
                           size={180}
-                          bgColor="transparent"
-                          fgColor="#ffffff"
-                          logo={{ uri: require('./assets/adaptive-icon.png') }} // يستخدم أيقونة التطبيق كلوجو
+                          bgColor="rgba(255,255,255,0.9)"
+                          fgColor="#1e293b"
                           logoSize={40}
                           logoBackgroundColor='transparent'
+                          level="H" // مستوى تصحيح عالٍ ليتحمل وجود اللوجو
                         />
                      </View>
                      
                      {/* اسم المستخدم تحت الرمز */}
                      <View style={styles.usernameTag}>
-                        <Text style={styles.usernameText}>@{generatedProfile.name.replace(/\s/g, '')}</Text>
+                        <Text style={styles.usernameText}>@{generatedProfile.name.replace(/\s/g, '').toLowerCase()}</Text>
                      </View>
                   </View>
 
-                  {/* روابط التواصل المختصرة */}
+                  {/* روابط التواصل المختصرة مع الصور */}
                   <View style={styles.linksList}>
-                    {Object.entries(generatedProfile.socials).map(([platId, urls]) => {
+                    {Object.entries(generatedProfile.socials).map(([platId, items]) => {
                        const platInfo = PLATFORMS.find(p => p.id === platId);
+                       
+                       // نجد أول عنصر لديه صورة لعرضها كأيقونة للمنصة كلها
+                       const representativeImg = items.find(i => i.i)?.img; 
+                       
                        return (
                          <View key={platId} style={styles.linkItem}>
-                            <Ionicons name={platInfo?.icon} size={16} color={platInfo?.color} />
-                            <Text style={styles.linkCount}>{urls.length} {platInfo?.name}</Text>
+                            {/* ✅ منطق الصورة: صورة الحساب -> أو صورة الخلفية -> أو أيقونة المنصة */}
+                            {representativeImg || mainBgImage ? (
+                               <Image 
+                                 source={{uri: representativeImg || mainBgImage}} 
+                                 style={styles.linkIconImg} 
+                               />
+                            ) : (
+                               <Ionicons name={platInfo?.icon} size={16} color={platInfo?.color} />
+                            )}
+                            
+                            <Text style={styles.linkCount}>{items.length} {platInfo?.name}</Text>
                          </View>
                        );
                     })}
@@ -266,7 +342,7 @@ export default function App() {
           <View style={styles.scanPlaceholder}>
              <Ionicons name="qr-code-outline" size={60} color="#555" />
              <Text style={styles.scanText}>ميزة المسح الضوئي قيد التطوير...</Text>
-             <Text style={styles.subScanText}>ستتمكن قريباَ من مسح رموز الآخرين وعرض ملفاتهم.</Text>
+             <Text style={styles.subScanText}>ستتمكن قريباً من مسح رموز الآخرين وعرض ملفاتهم.</Text>
           </View>
         )}
       </ScrollView>
@@ -301,11 +377,13 @@ export default function App() {
       </Modal>
 
     </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a' }, // أزرق داكن جداً
+  safeArea: { flex: 1, backgroundColor: '#0f172a' },
+  container: { flex: 1 },
   header: { padding: 20, alignItems: 'center', backgroundColor: '#1e293b', borderBottomWidth: 1, borderColor: '#334155' },
   avatarBtn: { position: 'absolute', left: 20, top: 20, padding: 5 },
   title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
@@ -323,6 +401,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#1e293b', borderRadius: 15, padding: 15, marginBottom: 15, borderWidth: 1, borderColor: '#334155' },
   cardTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 10 },
   input: { backgroundColor: '#0f172a', borderRadius: 8, padding: 12, color: '#fff', borderWidth: 1, borderColor: '#334155', marginBottom: 10 },
+  bioInput: { height: 80, textAlignVertical: 'top' }, // ✅ ارتفاع مناسب للوصف
   
   imageUploadBtn: { height: 80, borderRadius: 10, borderWidth: 1, borderColor: '#475569', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' },
   previewImg: { width: '100%', height: '100%', borderRadius: 10 },
@@ -330,21 +409,30 @@ const styles = StyleSheet.create({
 
   platformCard: { backgroundColor: '#1e293b', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#334155' },
   platformHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  platformName: { color: '#fff', fontWeight: 'bold', marginLeft: 10, flex: 1 },
+  platformName: { color: '#fff', fontWeight: 'bold', marginLeft: 10 },
   addBtnSmall: { padding: 2 },
   
   accountRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 },
+  
+  // ✅ صندوق الصورة الصغير للحساب
+  miniAvatarBox: { 
+     width: 36, height: 36, borderRadius: 18, 
+     backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#475569',
+     justifyContent: 'center', alignItems: 'center', overflow: 'hidden'
+  },
+  miniAvatarImg: { width: '100%', height: '100%' },
+
   smallInput: { flex: 1, backgroundColor: '#0f172a', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, color: '#fff', borderWidth: 1, borderColor: '#334155', fontSize: 13 },
   emptyHint: { color: '#64748b', fontSize: 11, fontStyle: 'italic', textAlign: 'center', marginVertical: 5 },
 
   generateBigBtn: { backgroundColor: '#6366f1', paddingVertical: 15, borderRadius: 12, alignItems: 'center', marginTop: 10, shadowColor: '#6366f1', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
   generateBigBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 
-  // Display Card (The Fancy Part)
+  // Display Card
   displaySection: { alignItems: 'center' },
   smartCard: { 
     width: '100%', 
-    height: 450, 
+    minHeight: 500, // زادنا الطول قليلاً لاستيعاب الوصف
     borderRadius: 20, 
     overflow: 'hidden', 
     backgroundColor: '#1e293b',
@@ -356,9 +444,10 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 10
   },
-  cardBgImage: { position: 'absolute', width: '100%', height: '100%', opacity: 0.3 },
+  cardBgImage: { position: 'absolute', width: '100%', height: '100%', opacity: 0.4 },
   cardOverlay: { flex: 1, padding: 20, justifyContent: 'center', alignItems: 'center' },
-  displayName: { color: '#fff', fontSize: 28, fontWeight: 'bold', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4, marginBottom: 20 },
+  displayName: { color: '#fff', fontSize: 28, fontWeight: 'bold', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 },
+  displayBio: { color: '#cbd5e1', fontSize: 14, textAlign: 'center', marginTop: 5, marginBottom: 15, maxWidth: '90%' }, // ✅ تنسيق الوصف
   
   qrWrapper: { alignItems: 'center', marginBottom: 20 },
   qrInnerBox: { 
@@ -379,7 +468,11 @@ const styles = StyleSheet.create({
 
   linksList: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
   linkItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#334155', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
-  linkCount: { color: '#cbd5e1', fontSize: 12, marginLeft: 5 },
+  
+  // ✅ صورة صغيرة داخل قائمة الروابط
+  linkIconImg: { width: 16, height: 16, borderRadius: 8, marginRight: 5 },
+  
+  linkCount: { color: '#cbd5e1', fontSize: 12 },
 
   actionBtn: { backgroundColor: '#10b981', paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, marginTop: 20, alignItems: 'center' },
   actionBtnText: { color: '#fff', fontWeight: 'bold' },
