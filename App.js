@@ -13,9 +13,9 @@ import {
   Animated,
   Image,
 } from 'react-native';
-import QRCode from 'qrcode.react';
+import QRCode from 'react-native-qrcode-svg'; // ✅ تم التصحيح هنا
 
-// FIXED: صيغ صحيحة للروابط
+// صيغ صحيحة للروابط
 const SOCIAL_PATTERNS = {
   facebook: /^(https?:\/\/)?(www\.)?facebook\.com\/[\w\-\.]+\/?(\?.*)?$/i,
   instagram: /^(https?:\/\/)?(www\.)?instagram\.com\/[\w\.]+\/?(\?.*)?$/i,
@@ -179,7 +179,7 @@ export default function App() {
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
 
-            <Text style={styles.modalTitle}>👨‍💻 حول المطور</Text>
+            <Text style={styles.modalTitle}>👨‍ حول المطور</Text>
             
             <View style={styles.developerCard}>
               <Text style={styles.developerName}>Alexei</Text>
@@ -441,7 +441,18 @@ const styles = StyleSheet.create({
   inputError: { borderColor: '#e74c3c', backgroundColor: '#2a0a0a' },
   errorText: { color: '#e74c3c', fontSize: 12, marginBottom: 8, textAlign: 'right' },
 
-  generateButton: { backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', paddingVertical: 15, borderRadius: 12, marginTop: 10, marginBottom: 20, shadowColor: '#667eea', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  generateButton: { 
+    backgroundColor: '#667eea', // ✅ لون ثابت آمن
+    paddingVertical: 15, 
+    borderRadius: 12, 
+    marginTop: 10, 
+    marginBottom: 20, 
+    shadowColor: '#667eea', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 8, 
+    elevation: 8 
+  },
   generateButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
 
   uploadButton: { backgroundColor: '#0f3460', paddingVertical: 15, borderRadius: 12, marginTop: 15, borderWidth: 2, borderColor: '#667eea' },
